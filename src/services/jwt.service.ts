@@ -14,6 +14,8 @@ class JwtService {
       expiresIn: '4h',
     });
   }
+
+
 }
 
 export default new JwtService();
