@@ -1,3 +1,4 @@
+import { RefreshToken } from './../../db/entities/refresh-token.entity';
 import { Request, Response } from 'express';
 import { assign, pick } from 'lodash';
 import { UserEntity } from '../../db/entities/user.entity';
@@ -31,6 +32,35 @@ export const login = async (req: Request, res: Response) => {
   if (!user || !user.verifyPassword(password)) {
     return res.status(400).send('I dont know you bro');
   }
+
   const token = JwtService.encode(user);
-  return res.send({ token });
+  const refreshToken = new RefreshToken();
+  refreshToken.token = JwtService.encodeRefreshToken(token);
+  await JwtService.updateRefreshTokenExpireDate(refreshToken);
+
+  return res.send({ token, refreshToken: refreshToken.token });
 };
+
+export const checkIsRefreshTokenAvailable = wrapper(
+  async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+
+    const jwtToken = JwtService.decodeRefreshToken(refreshToken) as string;
+
+    const user = JwtService.decode(jwtToken);
+
+    const existsRefreshToken = await RefreshToken.findOne({
+      token: refreshToken,
+    });
+
+    if (existsRefreshToken.expireDate < Date.now()) {
+      return res.status(401).send('Expired Token =(');
+    }
+
+    await JwtService.updateRefreshTokenExpireDate(refreshToken);
+
+    const token = JwtService.encode(user);
+
+    return res.send({ token, refreshToken: refreshToken.token });
+  }
+);
